@@ -28,3 +28,5 @@ class PMTree {
 std::vector<std::vector<char>> collectAll(const PMTree& obj);
 std::vector<char> getByOrder(const PMTree& obj, int idx);
 std::vector<char> getByRank(const PMTree& obj, int idx);
+
+#endif  // INCLUDE_TREE_H_
