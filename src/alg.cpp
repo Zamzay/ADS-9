@@ -7,131 +7,127 @@
 #include "tree.h"
 
 Node::~Node() {
-  for (Node* kid : children) delete kid;
+  for (Node* kid : kids) delete kid;
 }
 
 int64_t PMTree::getTotalPerms() const {
-  return root ? root->subtree_perm_count : 0;
+  return head ? head->perm_count : 0;
 }
 
-Node* PMTree::createNode(char val, const std::vector<char>& leftovers) {
-  Node* fresh = new Node(val);
-  if (leftovers.empty()) {
-    fresh->subtree_perm_count = 1;
+Node* PMTree::build(char v, const std::vector<char>& rest) {
+  Node* fresh = new Node(v);
+  if (rest.empty()) {
+    fresh->perm_count = 1;
     return fresh;
   }
-  for (char sym : leftovers) {
-    std::vector<char> rest;
-    rest.reserve(leftovers.size() - 1);
-    for (char x : leftovers) {
-      if (x != sym) rest.push_back(x);
+  for (char sym : rest) {
+    std::vector<char> leftover;
+    leftover.reserve(rest.size() - 1);
+    for (char x : rest) {
+      if (x != sym) leftover.push_back(x);
     }
-    Node* branch = createNode(sym, rest);
-    fresh->children.push_back(branch);
+    Node* branch = build(sym, leftover);
+    fresh->kids.push_back(branch);
   }
-  fresh->subtree_perm_count = fresh->children.size() *
-                               fresh->children[0]->subtree_perm_count;
+  fresh->perm_count = fresh->kids.size() * fresh->kids[0]->perm_count;
   return fresh;
 }
 
-PMTree::PMTree(const std::vector<char>& src) : root(nullptr), n(src.size()) {
-  if (n == 0) {
-    root = new Node('\0');
-    root->subtree_perm_count = 0;
+PMTree::PMTree(const std::vector<char>& src) : head(nullptr), len(src.size()) {
+  if (len == 0) {
+    head = new Node('\0');
+    head->perm_count = 0;
     return;
   }
   std::vector<char> ordered = src;
   std::sort(ordered.begin(), ordered.end());
-  root = new Node('\0');
+  head = new Node('\0');
   for (size_t pos = 0; pos < ordered.size(); ++pos) {
-    char cur_char = ordered[pos];
+    char cur = ordered[pos];
     std::vector<char> remainder;
     remainder.reserve(ordered.size() - 1);
     for (size_t idx = 0; idx < ordered.size(); ++idx) {
       if (idx != pos) remainder.push_back(ordered[idx]);
     }
-    Node* branch = createNode(cur_char, remainder);
-    root->children.push_back(branch);
+    Node* branch = build(cur, remainder);
+    head->kids.push_back(branch);
   }
-  if (!root->children.empty()) {
-    root->subtree_perm_count = root->children.size() *
-                               root->children[0]->subtree_perm_count;
+  if (!head->kids.empty()) {
+    head->perm_count = head->kids.size() * head->kids[0]->perm_count;
   } else {
-    root->subtree_perm_count = 0;
+    head->perm_count = 0;
   }
 }
 
 PMTree::~PMTree() {
-  delete root;
+  delete head;
 }
 
-void traverse(Node* ptr, std::vector<char>& buffer,
-              std::vector<std::vector<char>>& storage, bool skip_first) {
-  if (!skip_first) buffer.push_back(ptr->value);
-  if (ptr->children.empty()) {
-    storage.push_back(buffer);
+void walk(Node* ptr, std::vector<char>& buf, std::vector<std::vector<char>>& store, bool skip) {
+  if (!skip) buf.push_back(ptr->val);
+  if (ptr->kids.empty()) {
+    store.push_back(buf);
   } else {
-    for (Node* branch : ptr->children) {
-      traverse(branch, buffer, storage, false);
+    for (Node* branch : ptr->kids) {
+      walk(branch, buf, store, false);
     }
   }
-  if (!skip_first) buffer.pop_back();
+  if (!skip) buf.pop_back();
 }
 
-std::vector<std::vector<char>> getAllPerms(const PMTree& obj) {
-  std::vector<std::vector<char>> storage;
+std::vector<std::vector<char>> collectAll(const PMTree& obj) {
+  std::vector<std::vector<char>> store;
   Node* top = obj.getRoot();
-  if (!top) return storage;
-  std::vector<char> buffer;
-  traverse(top, buffer, storage, true);
-  return storage;
+  if (!top) return store;
+  std::vector<char> buf;
+  walk(top, buf, store, true);
+  return store;
 }
 
-bool finder(Node* ptr, std::vector<char>& buffer, int& cnt,
-            int need, bool skip_first, std::vector<char>& out) {
-  if (!skip_first) buffer.push_back(ptr->value);
-  if (ptr->children.empty()) {
+bool seek(Node* ptr, std::vector<char>& buf, int& cnt, int need, bool skip, std::vector<char>& out) {
+  if (!skip) buf.push_back(ptr->val);
+  if (ptr->kids.empty()) {
     ++cnt;
     if (cnt == need) {
-      out = buffer;
-      if (!skip_first) buffer.pop_back();
+      out = buf;
+      if (!skip) buf.pop_back();
       return true;
     }
   } else {
-    for (Node* branch : ptr->children) {
-      if (finder(branch, buffer, cnt, need, false, out)) {
-        if (!skip_first) buffer.pop_back();
+    for (Node* branch : ptr->kids) {
+      if (seek(branch, buf, cnt, need, false, out)) {
+        if (!skip) buf.pop_back();
         return true;
       }
     }
   }
-  if (!skip_first) buffer.pop_back();
+  if (!skip) buf.pop_back();
   return false;
 }
 
-std::vector<char> getPerm1(const PMTree& obj, int k) {
-  if (k < 1) return {};
+std::vector<char> getByOrder(const PMTree& obj, int idx) {
+  if (idx < 1) return {};
   Node* top = obj.getRoot();
-  if (!top || top->subtree_perm_count < k) return {};
-  std::vector<char> buffer, out;
+  if (!top || top->perm_count < idx) return {};
+  std::vector<char> buf, out;
   int cnt = 0;
-  finder(top, buffer, cnt, k, true, out);
+  seek(top, buf, cnt, idx, true, out);
   return out;
 }
 
-std::vector<char> getPerm2(const PMTree& obj, int k) {
-  if (k < 1) return {};
+std::vector<char> getByRank(const PMTree& obj, int idx) {
+  if (idx < 1) return {};
   Node* top = obj.getRoot();
-  if (!top || top->subtree_perm_count < k) return {};
+  if (!top || top->perm_count < idx) return {};
   std::vector<char> out;
   Node* cur = top;
-  int64_t remaining = k;
-  while (!cur->children.empty()) {
-    int64_t block = cur->children[0]->subtree_perm_count;
-    int64_t slot = (remaining - 1) / block;
-    Node* nxt = cur->children[slot];
-    out.push_back(nxt->value);
-    remaining = (remaining - 1) % block + 1;
+  int64_t rem = idx;
+  while (!cur->kids.empty()) {
+    int64_t block = cur->kids[0]->perm_count;
+    int64_t slot = (rem - 1) / block;
+    Node* nxt = cur->kids[slot];
+    out.push_back(nxt->val);
+    rem = (rem - 1) % block + 1;
     cur = nxt;
   }
   return out;
